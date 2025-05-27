@@ -1,11 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using System.Diagnostics;
 using System.Windows.Forms.DataVisualization.Charting;
-using LinearEquationsSolver;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace LinearEquationSolver
 {
@@ -50,17 +51,20 @@ namespace LinearEquationSolver
                 {
                     coefficientBoxes[i, j] = new TextBox
                     {
-                        Location = new Point(startX + 70 + j * (boxWidth + varLabelWidth + spacing * 3), startY + i * (boxHeight + spacing)),
+                        Location = new Point(startX + 70 + j * (boxWidth + varLabelWidth + spacing * 3), 
+                        startY + i * (boxHeight + spacing)),
                         Size = new Size(boxWidth, boxHeight),
                         Text = "0",
                         TextAlign = HorizontalAlignment.Right
                     };
+                    coefficientBoxes[i, j].TextChanged += TextBox_TextChanged;
                     panelMatrix.Controls.Add(coefficientBoxes[i, j]);
 
                     Label varLabel = new Label
                     {
                         Text = $"x{j + 1}",
-                        Location = new Point(coefficientBoxes[i, j].Right + spacing, startY + i * (boxHeight + spacing)),
+                        Location = new Point(coefficientBoxes[i, j].Right + spacing, 
+                        startY + i * (boxHeight + spacing)),
                         AutoSize = true
                     };
                     panelMatrix.Controls.Add(varLabel);
@@ -70,7 +74,8 @@ namespace LinearEquationSolver
                         Label plusLabel = new Label
                         {
                             Text = "+",
-                            Location = new Point(varLabel.Right + spacing, startY + i * (boxHeight + spacing)),
+                            Location = new Point(varLabel.Right + spacing, 
+                            startY + i * (boxHeight + spacing)),
                             AutoSize = true
                         };
                         panelMatrix.Controls.Add(plusLabel);
@@ -80,20 +85,110 @@ namespace LinearEquationSolver
                 Label eqSignLabel = new Label
                 {
                     Text = "=",
-                    Location = new Point(coefficientBoxes[i, n - 1].Right + varLabelWidth + spacing * 2, startY + i * (boxHeight + spacing)),
+                    Location = new Point(coefficientBoxes[i, n - 1].Right + varLabelWidth + spacing * 2, 
+                    startY + i * (boxHeight + spacing)),
                     AutoSize = true
                 };
                 panelMatrix.Controls.Add(eqSignLabel);
 
                 constantTerms[i] = new TextBox
                 {
-                    Location = new Point(eqSignLabel.Right + spacing, startY + i * (boxHeight + spacing)),
+                    Location = new Point(eqSignLabel.Right + spacing, 
+                    startY + i * (boxHeight + spacing)),
                     Size = new Size(boxWidth, boxHeight),
                     Text = "0",
                     TextAlign = HorizontalAlignment.Right
                 };
+                constantTerms[i].TextChanged += TextBox_TextChanged;
                 panelMatrix.Controls.Add(constantTerms[i]);
             }
+
+            // Додати підказку про формат введення
+            Label hintLabel = new Label
+            {
+                Text = "Введіть цілі числа (від -1000 до 1000) або дробові з крапкою або комою (максимум 4 знаки після коми)",
+                Location = new Point(startX, startY + n * (boxHeight + spacing) + 20),
+                AutoSize = true,
+                ForeColor = Color.Gray,
+                Font = new Font(this.Font, FontStyle.Italic)
+            };
+            panelMatrix.Controls.Add(hintLabel);
+        }
+
+        private void TextBox_TextChanged(object sender, EventArgs e)
+        {
+            TextBox textBox = (TextBox)sender;
+            string text = textBox.Text;
+            
+            // Перевірка на коректність введення
+            if (string.IsNullOrEmpty(text)) return;
+
+            // Заміна коми на крапку
+            if (text.Contains(","))
+            {
+                textBox.Text = text.Replace(",", ".");
+                textBox.SelectionStart = textBox.Text.Length;
+                return;
+            }
+
+            // Перевірка на кількість знаків після коми
+            if (text.Contains("."))
+            {
+                string[] parts = text.Split('.');
+                if (parts.Length > 1 && parts[1].Length > 4)
+                {
+                    textBox.Text = parts[0] + "." + parts[1].Substring(0, 4);
+                    textBox.SelectionStart = textBox.Text.Length;
+                    MessageBox.Show("Максимально допустима кількість знаків після коми - 4", 
+                                    "Попередження", 
+                                    MessageBoxButtons.OK, 
+                                    MessageBoxIcon.Warning);
+                }
+            }
+
+            // Перевірка на коректність числа
+            if (!Regex.IsMatch(text, @"^-?\d*\.?\d*$"))
+            {
+                int cursorPos = textBox.SelectionStart - 1;
+                textBox.Text = text.Remove(cursorPos, 1);
+                textBox.SelectionStart = cursorPos;
+                MessageBox.Show("Дозволено вводити тільки цифри, знак мінус і крапку", 
+                                "Попередження", 
+                                MessageBoxButtons.OK, 
+                                MessageBoxIcon.Warning);
+            }
+        }
+
+        private bool ValidateNumberInput(string input, out double value)
+        {
+            value = 0;
+            
+            if (string.IsNullOrWhiteSpace(input))
+                return false;
+
+            // Заміна коми на крапку для уніфікації
+            input = input.Replace(",", ".");
+
+            // Перевірка формату числа
+            if (!double.TryParse(input, NumberStyles.Any, CultureInfo.InvariantCulture, out value))
+                return false;
+
+            // Перевірка кількості знаків після коми
+            int decimalPlaces = 0;
+            if (input.Contains("."))
+            {
+                decimalPlaces = input.Split('.')[1].Length;
+                if (decimalPlaces > 4)
+                {
+                    MessageBox.Show("Максимально допустима кількість знаків після коми - 4", 
+                                    "Попередження", 
+                                    MessageBoxButtons.OK, 
+                                    MessageBoxIcon.Warning);
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void btnSetSize_Click(object sender, EventArgs e)
@@ -119,7 +214,7 @@ namespace LinearEquationSolver
                 {
                     for (int j = 0; j < size; j++)
                     {
-                        if (!double.TryParse(coefficientBoxes[i, j].Text, out double coefficientValue))
+                        if (!ValidateNumberInput(coefficientBoxes[i, j].Text, out double coefficientValue))
                             throw new FormatException($"Невірний формат числа у коефіцієнті [{i + 1},{j + 1}]");
 
                         if (coefficientValue < -1000 || coefficientValue > 1000)
@@ -128,7 +223,7 @@ namespace LinearEquationSolver
                         equationSystem.SetCoefficient(i, j, coefficientValue);
                     }
 
-                    if (!double.TryParse(constantTerms[i].Text, out double constantValue))
+                    if (!ValidateNumberInput(constantTerms[i].Text, out double constantValue))
                         throw new FormatException($"Невірний формат вільного члена у рівнянні {i + 1}");
 
                     if (constantValue < -1000 || constantValue > 1000)
@@ -147,14 +242,14 @@ namespace LinearEquationSolver
                     double[] solution = equationSystem.Solve(solver, writer);
 
                     txtSolutionSteps.Text = $"Метод: {solver.Name}\r\n";
-                    txtSolutionSteps.Text += writer.ToString(); // Включає кількість ітерацій, яку додають розв’язники
+                    txtSolutionSteps.Text += writer.ToString();
 
                     txtSolution.Text = "Розв'язок:\r\n";
                     if (solution != null)
                     {
                         for (int i = 0; i < solution.Length; i++)
                         {
-                            txtSolution.Text += $"x{i + 1} = {solution[i]:F2}\r\n";
+                            txtSolution.Text += $"x{i + 1} = {solution[i]:F4}\r\n"; // Виводимо з точністю до 4 знаків
                         }
                     }
                     else
@@ -295,8 +390,6 @@ namespace LinearEquationSolver
                     series.Points.AddXY(xConst, maxPlotY);
                     series.BorderDashStyle = ChartDashStyle.Dash; // Можна зробити пунктирною для вертикальної лінії
                 }
-                // Випадок, коли a1 та a2 близькі до нуля (0 = b), система має нескінченні розв'язки або 0=b (немає розв'язків)
-                // В даній реалізації такі випадки не візуалізуються як лінії, що є логічним.
             }
 
             // Додаємо серію для точки розв'язку
@@ -350,7 +443,6 @@ namespace LinearEquationSolver
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            // Optional: Add initialization logic if needed
         }
     }
 }
