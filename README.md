@@ -3,8 +3,6 @@
 ## Overview
 This repository contains a C# application designed to solve Systems of Linear Algebraic Equations (SLAE) using advanced numerical methods. 
 
-As a Software Engineering student transitioning into Data Analytics, I developed this project to strengthen my algorithmic thinking and apply linear algebra concepts in software development. Understanding these underlying mathematical models is crucial for data processing and machine learning algorithms.
-
 ## Implemented Mathematical Methods
 The application supports the following numerical methods for solving linear systems:
 
